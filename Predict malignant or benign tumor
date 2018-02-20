@@ -1,0 +1,153 @@
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import Lasso
+from sklearn.metrics import r2_score
+from sklearn.model_selection import cross_val_score
+from sklearn.ensemble import RandomForestClassifier
+import numpy as np
+from sklearn.multiclass import OneVsRestClassifier
+from mlxtend.plotting import plot_decision_regions
+import statsmodels.api as sm
+
+
+df= pd.read_csv('data.csv',index_col= 'id')
+df.drop(['Unnamed: 32'],1,inplace=True)
+
+df.diagnosis.replace(['M','B'], [1,0],inplace=True)
+
+def dataSet_info():
+    print(df)
+    print(df.info())
+    print(df.describe())
+    print(df.shape)
+
+
+
+
+def heatmap():
+    corr = df.corr()
+    sns.heatmap(corr, cmap='RdBu_r', linewidths=2)
+    plt.show()
+
+def box_dist_plot():
+    for i in df.columns:
+        plt.figure(figsize=(10,10))
+        plt.subplot(2,1,1)
+        sns.distplot(df[i])
+        plt.ylabel('count')
+        plt.subplot(2,1,2)
+        sns.boxplot(x='diagnosis',y=i,data=df)
+        plt.xlabel(i)
+        plt.ylabel(i)
+        plt.xticks([0,1],['B','M'])
+        plt.show()
+
+
+
+def swarmplots():
+    for i in df.columns:
+        plt.figure(figsize=(10,10))
+        sns.swarmplot(x= 'diagnosis',y = i,data=df)
+        plt.xlabel('Diagnosis')
+        plt.ylabel(i)
+        plt.xticks([0,1],['B','M'])
+        plt.show()
+
+
+
+X = df.drop('diagnosis',1)
+X_col= X.columns
+print(X.shape)
+y = df['diagnosis']
+
+
+def las_coef():
+    lass = Lasso(alpha=.001,normalize=True)
+    lass.fit(X,y)
+
+    coef = lass.coef_
+    print(coef)
+    col = df.drop('diagnosis',axis=1).columns
+
+    plt.plot(range(len(col)),coef)
+    plt.title('Understanding which feature has the strongest response to Diasgnosis')
+    plt.xticks(range(len(col)),df.columns.values,rotation = 60)
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+min_max = MinMaxScaler()
+X = min_max.fit_transform(X)
+X = pd.DataFrame(X,columns=X_col)
+
+X = df.drop(["area_mean","radius_mean","area_se","symmetry_mean","symmetry_worst","fractal_dimension_se","concave points_se","compactness_mean",'smoothness_mean','radius_se','perimeter_se','fractal_dimension_worst','texture_mean','texture_worst','concave points_mean','diagnosis','smoothness_worst','texture_se','smoothness_se','smoothness_mean','texture_se','fractal_dimension_mean',"compactness_worst",'compactness_se','concavity_se','symmetry_se',"concavity_worst"],1)
+#X = df[['concavity_mean','area_worst','concavity_worst','fractal_dimension_mean','fractal_dimension_se','concave points_worst']]
+print(X.columns)
+X_train, X_test, y_train,y_test = train_test_split(X,y,test_size=.2,random_state=42)
+print(X_train.shape)
+
+
+log = OneVsRestClassifier(LogisticRegression(C=1, class_weight=None, dual=False, fit_intercept=True,
+          intercept_scaling=1, max_iter=100, multi_class='multinomial',
+          n_jobs=1, penalty='l2', random_state=None, solver='newton-cg',
+          tol=0.0001, verbose=0, warm_start=False))
+log.fit(X_train,y_train)
+pred = log.predict(X_test)
+print("R2 of model: %0.2f" %r2_score(y_test,pred))
+
+cv = cross_val_score(log,X,y,cv=5)
+print('Accuracy: %0.2f' %(cv.mean()))
+
+
+
+RC = RandomForestClassifier(bootstrap='boolean', class_weight=None,
+            criterion='gini', max_depth=None, max_features='sqrt',
+            max_leaf_nodes=None, min_impurity_decrease=0.0,
+            min_impurity_split=None, min_samples_leaf=1,
+            min_samples_split=2, min_weight_fraction_leaf=0.0,
+            n_estimators=100, n_jobs=100, oob_score=False,
+            random_state=None, verbose=0, warm_start=False)
+RC.fit(X_train,y_train)
+RC_pred = RC.predict(X_test)
+
+print(r2_score(y_test,RC_pred))
+CV_RC = cross_val_score(RC,X,y,cv=5)
+print("Acc: %0.2f" % CV_RC.mean())
+
+
+
+X = np.array(X)
+y = np.array(y)
+
+slope = log.coef_
+inter = log.intercept_
+
+print(slope)
+print(inter)
+#plt.plot(X[y == 0, 0], X[y == 0, 1], 'ro', label='B')
+#plt.plot(X[y == 1, 0], X[y == 1, 1], 'bo', label='M')
+
+#plt.legend()
+
+#plt.show()
+
+from sklearn.linear_model import Ridge
+
+r2 = []
+alpha_values = [.000001,.001,.01,.1,1,10]
+for i in alpha_values:
+    rid = Ridge(alpha=i)
+    rid.fit(X_train,y_train)
+    pre = rid.predict(X_test)
+
+    score = r2_score(y_test,pre)
+    r2.append(score)
+
+plt.plot(alpha_values,r2)
+plt.show()
